@@ -1,14 +1,21 @@
 package com.example.googleaistudio; // Make sure this matches your package name
 
+// --- IMPORT STATEMENTS ---
+// Make sure you have all of these
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
-import android.content.Intent;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -16,79 +23,149 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.Scope;
+import com.google.android.gms.tasks.Task;
 import com.google.android.material.navigation.NavigationView;
+import com.google.api.services.drive.DriveScopes;
+
 
 public class MainActivity extends AppCompatActivity {
 
-    // UI Components
+    // --- CONSTANTS ---
+    private static final String TAG = "MainActivity";
+    private static final int RC_SIGN_IN = 9001;
+
+    // --- UI COMPONENTS ---
     private DrawerLayout drawerLayout;
-    private Toolbar toolbar;
-    private NavigationView navigationView;
-    private RecyclerView chatRecyclerView;
-    private EditText promptInput;
-    private ImageButton sendButton;
+    // ... (other UI components)
+
+    // --- GOOGLE SIGN IN ---
+    private GoogleSignInClient mGoogleSignInClient;
+    private GoogleSignInAccount mSignedInAccount;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // This links the Java file to our XML layout file.
         setContentView(R.layout.activity_main);
 
-        // --- Initialize UI Components ---
+        // --- Find Views by ID ---
         drawerLayout = findViewById(R.id.drawer_layout);
-        toolbar = findViewById(R.id.toolbar);
-        navigationView = findViewById(R.id.nav_view);
-        chatRecyclerView = findViewById(R.id.chat_recycler_view);
-        promptInput = findViewById(R.id.prompt_input);
-        sendButton = findViewById(R.id.send_button);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        // ... (find other views if you haven't declared them at the top)
 
-        // --- Setup Toolbar ---
         setSupportActionBar(toolbar);
+        setupNavigationDrawer(toolbar);
 
-        // --- Setup Navigation Drawer ---
-        // This creates the "hamburger" icon and handles opening/closing the drawer.
+        // --- Configure Google Sign-In ---
+        // We request the user's basic profile and the permission to manage files they create with our app.
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestScopes(new Scope(DriveScopes.DRIVE_FILE))
+                .build();
+
+        mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Check for existing Google Sign In account, if the user is already signed in
+        // the GoogleSignInAccount will be non-null.
+        mSignedInAccount = GoogleSignIn.getLastSignedInAccount(this);
+        updateUI(mSignedInAccount);
+    }
+
+    private void setupNavigationDrawer(Toolbar toolbar) {
+        NavigationView navigationView = findViewById(R.id.nav_view);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(this, drawerLayout, toolbar,
                 R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
 
-        // --- Setup Navigation Item Click Listener ---
-        // This is where you'll handle clicks on "Chat", "Settings", etc.
-        navigationView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
-            @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                // Handle navigation view item clicks here.
-                int id = item.getItemId();
-
-                if (id == R.id.nav_chat) {
-                    Toast.makeText(MainActivity.this, "Chat Selected", Toast.LENGTH_SHORT).show();
-                } else if (id == R.id.nav_settings) {
-                    // Start the SettingsActivity
-                    Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-                    startActivity(intent);
-                }
-
-                // Close the navigation drawer
-                drawerLayout.closeDrawer(GravityCompat.START);
-                return true;
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_chat) {
+                // Just close the drawer, we are already here
+            } else if (id == R.id.nav_settings) {
+                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+            } else if (id == R.id.nav_sign_in) {
+                signIn();
+            } else if (id == R.id.nav_sign_out) {
+                signOut();
             }
-        });
 
-        // --- Setup Send Button Click Listener ---
-        sendButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String prompt = promptInput.getText().toString();
-                if (!prompt.isEmpty()) {
-                    Toast.makeText(MainActivity.this, "Sending: " + prompt, Toast.LENGTH_SHORT).show();
-                    // We will call the AI here in the next step
-                    promptInput.setText(""); // Clear the input field
-                }
-            }
+            drawerLayout.closeDrawer(GravityCompat.START);
+            return true;
         });
     }
 
-    // This method handles the back button press to close the drawer if it's open.
+    // --- GOOGLE SIGN-IN METHODS ---
+
+    private void signIn() {
+        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+        startActivityForResult(signInIntent, RC_SIGN_IN);
+    }
+
+    private void signOut() {
+        mGoogleSignInClient.signOut().addOnCompleteListener(this, task -> {
+            Toast.makeText(this, "Signed Out", Toast.LENGTH_SHORT).show();
+            updateUI(null);
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        // Result returned from launching the Intent from GoogleSignInClient.getSignInIntent(...);
+        if (requestCode == RC_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            handleSignInResult(task);
+        }
+    }
+
+    private void handleSignInResult(Task<GoogleSignInAccount> completedTask) {
+        try {
+            mSignedInAccount = completedTask.getResult(ApiException.class);
+            // Signed in successfully, show authenticated UI.
+            Toast.makeText(this, "Signed In Successfully", Toast.LENGTH_SHORT).show();
+            updateUI(mSignedInAccount);
+        } catch (ApiException e) {
+            // The ApiException status code indicates the detailed failure reason.
+            Log.w(TAG, "signInResult:failed code=" + e.getStatusCode());
+            Toast.makeText(this, "Sign in failed. Please try again.", Toast.LENGTH_SHORT).show();
+            updateUI(null);
+        }
+    }
+
+    private void updateUI(@Nullable GoogleSignInAccount account) {
+        NavigationView navigationView = findViewById(R.id.nav_view);
+        Menu navMenu = navigationView.getMenu();
+        View headerView = navigationView.getHeaderView(0);
+        TextView navHeaderName = headerView.findViewById(R.id.nav_header_name);
+        TextView navHeaderEmail = headerView.findViewById(R.id.nav_header_email);
+
+        if (account != null) {
+            // User is signed in
+            navMenu.findItem(R.id.nav_sign_in).setVisible(false);
+            navMenu.findItem(R.id.nav_sign_out).setVisible(true);
+            navHeaderName.setText(account.getDisplayName());
+            navHeaderEmail.setText(account.getEmail());
+        } else {
+            // User is signed out
+            navMenu.findItem(R.id.nav_sign_in).setVisible(true);
+            navMenu.findItem(R.id.nav_sign_out).setVisible(false);
+            navHeaderName.setText("Guest");
+            navHeaderEmail.setText("Sign in to sync your chats");
+        }
+    }
+
+    // --- OTHER METHODS ---
+
     @Override
     public void onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
