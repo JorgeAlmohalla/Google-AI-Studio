@@ -1,7 +1,9 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- Base application theme for Night Mode. -->
     <style name="Base.Theme.GoogleAIStudio" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <!-- For example, let's use a darker shade for the primary color -->
+        <item name="colorPrimary">@color/google_blue_700</item>
+        <item name="colorPrimaryDark">@color/black</item> <!-- Or another dark color -->
     </style>
 </resources>
