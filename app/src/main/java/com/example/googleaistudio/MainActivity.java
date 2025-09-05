@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.Toast;
+import android.content.Intent;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
@@ -62,7 +63,9 @@ public class MainActivity extends AppCompatActivity {
                 if (id == R.id.nav_chat) {
                     Toast.makeText(MainActivity.this, "Chat Selected", Toast.LENGTH_SHORT).show();
                 } else if (id == R.id.nav_settings) {
-                    Toast.makeText(MainActivity.this, "Settings Selected", Toast.LENGTH_SHORT).show();
+                    // Start the SettingsActivity
+                    Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+                    startActivity(intent);
                 }
 
                 // Close the navigation drawer
